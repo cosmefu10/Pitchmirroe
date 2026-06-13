@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PitchMirror</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  background: #07101F;
+  color: #B8CDE0;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+header {
+  border-bottom: 1px solid #0c1e38;
+  padding: 15px 24px;
+}
+.header-inner {
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo       { color: #3DD6BF; font-size: 26px; font-weight: 300; line-height: 1; }
+.app-name   { font-size: 15px; font-weight: 700; color: #E8F4FF; letter-spacing: -.3px; }
+.app-sub    { margin-left: 12px; font-size: 11px; color: #243A52; }
+
+main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 22px 24px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  background: #0A1525;
+  border: 1px solid #0c1e38;
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.panel-label { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+.dot         { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.panel-title { font-size: 12px; font-weight: 700; }
+.panel-hint  { font-size: 11px; color: #2d4e68; margin-bottom: 12px; line-height: 1.5; }
+
+.zone {
+  border: 2px dashed #0d1e35;
+  border-radius: 10px;
+  padding: 20px 12px;
+  text-align: center;
+  background: #060e1c;
+  cursor: pointer;
+  transition: border-color .2s;
+  user-select: none;
+}
+.zone-inner  { display: flex; flex-direction: column; align-items: center; gap: 7px; font-size: 12px; }
+.zone-loader { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; }
+
+.spinner {
+  width: 14px; height: 14px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  flex-shrink: 0;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.chart-title {
+  font-size: 12px; font-weight: 600; color: #2c5272;
+  text-transform: uppercase; letter-spacing: .07em;
+}
+
+#btn-analyze {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: #0f1e3a;
+  border: 1px solid #1a3060;
+  color: #6898d4;
+  border-radius: 8px;
+  padding: 6px 13px;
+  font-size: 12px;
+  cursor: pointer;
+}
+#btn-analyze.visible { display: flex; }
+#btn-analyze:disabled { opacity: .5; cursor: not-allowed; }
+
+.chart-empty {
+  height: 175px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0f2030;
+  font-size: 13px;
+  font-style: italic;
+}
+.chart-note {
+  margin-top: 10px;
+  font-size: 10px;
+  color: #182e40;
+  line-height: 1.5;
+  display: none;
+}
+
+#ai-panel {
+  background: #090f22;
+  border: 1px solid #152848;
+  border-radius: 12px;
+  padding: 18px;
+  display: none;
+}
+.ai-title {
+  font-size: 11px; font-weight: 700; color: #2a4a7a;
+  text-transform: uppercase; letter-spacing: .08em;
+  display: block; margin-bottom: 12px;
+}
+#ai-text { font-size: 13px; color: #6890b8; line-height: 1.8; white-space: pre-wrap; }
+
+.step-list { display: flex; flex-direction: column; gap: 10px; }
+.step      { display: flex; gap: 12px; align-items: flex-start; }
+.step-num  { font-family: monospace; font-size: 10px; color: #182e40; min-width: 20px; padding-top: 2px; }
+.step-body { font-size: 12px; line-height: 1.6; }
+.step-body strong { color: #3a6080; }
+.step-body span   { color: #2a4a60; }
+.step-tip  {
+  margin-top: 16px; padding-top: 14px;
+  border-top: 1px solid #0c1e30;
+  font-size: 11px; color: #182e40; line-height: 1.6;
+}
+.step-tip strong { color: #243a50; }
+
+#error-banner {
+  background: #1a0a0a;
+  border: 1px solid #4a1515;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #d08080;
+  display: none;
+}
+
+audio { width: 100%; margin-top: 10px; display: block; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 600px) {
+  .panels { grid-template-columns: 1fr; }
+  .app-sub { display: none; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <span class="logo">〜</span>
+    <div>
+      <span class="app-name">PitchMirror</span>
+      <span class="app-sub">shadowing visual · compara tu entonación con hablantes nativos</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <div id="error-banner"></div>
+
+  <div class="panels">
+
+    <!-- ── Referencia ── -->
+    <div class="card">
+      <div class="panel-label">
+        <span class="dot" style="background:#3DD6BF"></span>
+        <span class="panel-title" style="color:#3DD6BF">Audio de referencia</span>
+      </div>
+      <p class="panel-hint">
+        Sube el audio del nativo que vas a imitar. 5–15 s idealmente.<br>
+        MP3, WAV, OGG — extrae de YouTube, audiobooks, series…
+      </p>
+      <input type="file" id="ref-file" accept="audio/*" style="display:none">
+      <div class="zone" id="ref-zone">
+        <div class="zone-inner" id="ref-zone-inner" style="color:#2a4a62">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span>Subir audio</span>
+        </div>
+      </div>
+      <div id="ref-audio-wrap"></div>
+    </div>
+
+    <!-- ── Tu voz ── -->
+    <div class="card">
+      <div class="panel-label">
+        <span class="dot" style="background:#FF7353"></span>
+        <span class="panel-title" style="color:#FF7353">Tu voz</span>
+      </div>
+      <p class="panel-hint">
+        Grábate diciendo la misma oración — shadowing o de memoria.<br>
+        Usa auriculares para evitar que el micrófono capture la referencia.
+      </p>
+      <div class="zone" id="user-zone">
+        <div class="zone-inner" id="user-zone-inner" style="color:#2a4a62">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+          <span>Grabar mi voz</span>
+        </div>
+      </div>
+      <div id="user-audio-wrap"></div>
+    </div>
+
+  </div>
+
+  <!-- ── Curva de entonación ── -->
+  <div class="card">
+    <div class="chart-header">
+      <span class="chart-title">Curva de entonación</span>
+      <button id="btn-analyze">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="20" x2="18" y2="10"/>
+          <line x1="12" y1="20" x2="12" y2="4"/>
+          <line x1="6"  y1="20" x2="6"  y2="14"/>
+        </svg>
+        Analizar con IA
+      </button>
+    </div>
+    <div id="chart-area">
+      <div class="chart-empty">Carga un audio de referencia y graba tu voz para ver la comparación</div>
+    </div>
+    <div class="chart-note" id="chart-note">
+      Eje Y: semitonos relativos a la mediana propia de cada hablante —
+      se compara la <em>forma</em> de la melodía, no el tono absoluto.
+      Las pausas entre palabras aparecen como interrupciones en la curva.
+    </div>
+  </div>
+
+  <!-- ── Análisis IA ── -->
+  <div id="ai-panel">
+    <span class="ai-title">Análisis de diferencias</span>
+    <p id="ai-text"></p>
+  </div>
+
+  <!-- ── Instrucciones ── -->
+  <div class="card">
+    <span style="font-size:11px;font-weight:700;color:#182e40;text-transform:uppercase;letter-spacing:.07em;display:block;margin-bottom:13px">
+      Cómo usarlo
+    </span>
+    <div class="step-list">
+      <div class="step">
+        <span class="step-num">01</span>
+        <div class="step-body">
+          <strong>Sube el audio de referencia</strong>
+          <span> — Extrae un fragmento de cualquier nativo (audiobook, YouTube, podcast). El app lo analiza automáticamente y muestra la curva teal.</span>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">02</span>
+        <div class="step-body">
+          <strong>Estudia la curva teal</strong>
+          <span> — Observa los picos (tono alto) y valles (tono bajo). Esos patrones son la "música" de esa oración.</span>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">03</span>
+        <div class="step-body">
+          <strong>Graba tu shadowing</strong>
+          <span> — Escucha varias veces, luego grábate imitando la melodía. Usa auriculares para evitar eco.</span>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">04</span>
+        <div class="step-body">
+          <strong>Compara las curvas</strong>
+          <span> — Teal = nativo, naranja = tú. ¿Tus picos y valles coinciden? ¿Subes donde él sube?</span>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">05</span>
+        <div class="step-body">
+          <strong>Analiza con IA</strong>
+          <span> — Explica las diferencias en español y da ejercicios concretos para el problema principal.</span>
+        </div>
+      </div>
+    </div>
+    <div class="step-tip">
+      <strong>Tip de shadowing:</strong> Escucha 3–5 veces sin hacer nada. Luego tararéala (humming).
+      Solo entonces grábate hablando. Este ciclo es más efectivo que grabar inmediatamente.
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  ESTADO
+// ═══════════════════════════════════════════════════════════
+let refFrames    = null;
+let userFrames   = null;
+let isRecording  = false;
+let busyRef      = false;
+let busyUser     = false;
+let mr           = null;   // MediaRecorder
+let chunks       = [];
+
+const CR = '#3DD6BF';   // color referencia
+const CU = '#FF7353';   // color usuario
+
+// ═══════════════════════════════════════════════════════════
+//  PROCESAMIENTO DE SEÑAL
+// ═══════════════════════════════════════════════════════════
+
+function detectPitchHz(frame, sr) {
+  let rms = 0;
+  for (let i = 0; i < frame.length; i++) rms += frame[i] * frame[i];
+  if (Math.sqrt(rms / frame.length) < 0.007) return null;
+
+  const minTau = Math.floor(sr / 380);
+  const maxTau = Math.min(Math.floor(sr / 70), Math.floor(frame.length / 2) - 1);
+  if (minTau >= maxTau) return null;
+
+  let bestTau = -1, bestC = 0;
+  for (let tau = minTau; tau <= maxTau; tau++) {
+    let num = 0, a = 0, b = 0;
+    const n = frame.length - tau;
+    for (let i = 0; i < n; i++) {
+      num += frame[i] * frame[i + tau];
+      a   += frame[i] * frame[i];
+      b   += frame[i + tau] * frame[i + tau];
+    }
+    const c = a * b > 0 ? num / Math.sqrt(a * b) : 0;
+    if (c > bestC) { bestC = c; bestTau = tau; }
+  }
+  return bestTau > 0 && bestC > 0.43 ? sr / bestTau : null;
+}
+
+function downsample(data, ratio) {
+  if (ratio <= 1) return data;
+  const out = new Float32Array(Math.floor(data.length / ratio));
+  for (let i = 0; i < out.length; i++) {
+    let s = 0;
+    for (let j = 0; j < ratio; j++) s += data[i * ratio + j] ?? 0;
+    out[i] = s / ratio;
+  }
+  return out;
+}
+
+function medianOf(arr) {
+  const s = [...arr].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+
+async function extractFrames(audioBuf) {
+  const sr0    = audioBuf.sampleRate;
+  const raw    = audioBuf.getChannelData(0);
+  const ratio  = Math.max(1, Math.floor(sr0 / 11025));
+  const sr     = Math.round(sr0 / ratio);
+  const signal = downsample(raw, ratio);
+
+  const FRAME = 512;
+  const HOP   = Math.max(1, Math.floor(sr / 22));
+  const total = Math.floor((signal.length - FRAME) / HOP);
+  const pitches = [], times = [];
+
+  for (let fi = 0; fi < total; fi++) {
+    if (fi % 25 === 0) await new Promise(r => setTimeout(r, 0)); // cede el hilo UI
+    const off   = fi * HOP;
+    const frame = new Float32Array(FRAME);
+    for (let j = 0; j < FRAME; j++)
+      frame[j] = signal[off + j] * (0.5 - 0.5 * Math.cos(2 * Math.PI * j / (FRAME - 1)));
+    pitches.push(detectPitchHz(frame, sr));
+    times.push(off / sr);
+  }
+
+  // Filtro de mediana (ventana ±2)
+  const smooth = pitches.map((p, i) => {
+    if (!p) return null;
+    const w = pitches.slice(Math.max(0, i - 2), i + 3).filter(Boolean);
+    return w.length ? medianOf(w) : null;
+  });
+
+  // Normalizar a semitonos relativos a la mediana propia del hablante
+  const voiced = smooth.filter(Boolean);
+  if (!voiced.length) return [];
+  const med = medianOf(voiced);
+
+  const frames = times.map((t, i) => ({
+    t:  +t.toFixed(3),
+    hz: smooth[i],
+    st: smooth[i] ? +(12 * Math.log2(smooth[i] / med)).toFixed(2) : null,
+  }));
+
+  // Recortar silencio al inicio y final
+  const first = frames.findIndex(f => f.st !== null);
+  const last  = frames.reduce((l, f, i) => f.st !== null ? i : l, -1);
+  if (first < 0) return [];
+  const t0 = frames[first].t;
+  return frames.slice(first, last + 1).map(f => ({ ...f, t: +(f.t - t0).toFixed(3) }));
+}
+
+async function blobToFrames(blob) {
+  const ab  = await blob.arrayBuffer();
+  const ctx = new AudioContext();
+  try {
+    const buf = await ctx.decodeAudioData(ab);
+    return await extractFrames(buf);
+  } finally { await ctx.close(); }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SVG — GRÁFICO DE CURVAS
+// ═══════════════════════════════════════════════════════════
+const VW = 760, VH = 215;
+const PAD = { l: 58, r: 16, t: 22, b: 30 };
+const PW  = VW - PAD.l - PAD.r;
+const PH  = VH - PAD.t  - PAD.b;
+const ST_MIN = -10, ST_MAX = 10;
+
+const GRID = [
+  { st:  8, label: 'Alto'       },
+  { st:  4, label: 'Medio-alto' },
+  { st:  0, label: 'Medio'      },
+  { st: -4, label: 'Medio-bajo' },
+  { st: -8, label: 'Bajo'       },
+];
+
+function stY(st) {
+  const c = Math.max(ST_MIN, Math.min(ST_MAX, st));
+  return PAD.t + PH - ((c - ST_MIN) / (ST_MAX - ST_MIN)) * PH;
+}
+
+function buildPaths(frames, maxT) {
+  const tX = t => PAD.l + (t / maxT) * PW;
+  const segs = []; let cur = [];
+  for (const f of frames) {
+    if (f.st !== null) cur.push(f);
+    else { if (cur.length >= 2) segs.push([...cur]); cur = []; }
+  }
+  if (cur.length >= 2) segs.push(cur);
+
+  return segs.map(seg => {
+    const step = Math.max(1, Math.floor(seg.length / 65));
+    const pts  = seg.filter((_, i) => i % step === 0 || i === seg.length - 1);
+    if (pts.length < 2) return null;
+    let d = `M${tX(pts[0].t).toFixed(1)} ${stY(pts[0].st).toFixed(1)}`;
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i - 1], c = pts[i];
+      const mx = (tX(p.t) + tX(c.t)) / 2;
+      d += ` C${mx.toFixed(1)} ${stY(p.st).toFixed(1)} ${mx.toFixed(1)} ${stY(c.st).toFixed(1)} ${tX(c.t).toFixed(1)} ${stY(c.st).toFixed(1)}`;
+    }
+    return d;
+  }).filter(Boolean);
+}
+
+function renderChart() {
+  const area = document.getElementById('chart-area');
+  const note = document.getElementById('chart-note');
+
+  if (!refFrames && !userFrames) {
+    area.innerHTML = `<div class="chart-empty">Carga un audio de referencia y graba tu voz para ver la comparación</div>`;
+    note.style.display = 'none';
+    return;
+  }
+
+  const allT = [...(refFrames || []), ...(userFrames || [])].map(f => f.t);
+  const maxT = allT.length ? Math.max(...allT, 0.5) : 5;
+
+  const refPaths  = refFrames  ? buildPaths(refFrames,  maxT) : [];
+  const userPaths = userFrames ? buildPaths(userFrames, maxT) : [];
+
+  const gridSVG = GRID.map(({ st, label }) =>
+    `<line x1="${PAD.l}" x2="${VW - PAD.r}" y1="${stY(st).toFixed(1)}" y2="${stY(st).toFixed(1)}"
+       stroke="#0c2244" stroke-width="1" stroke-dasharray="6 4"/>
+     <text x="${PAD.l - 7}" y="${(stY(st) + 4).toFixed(1)}" text-anchor="end"
+       font-size="10" fill="#1f4a6a" font-family="monospace">${label}</text>`
+  ).join('');
+
+  const refSVG  = refPaths.map(d  =>
+    `<path d="${d}" fill="none" stroke="${CR}" stroke-width="2.8" stroke-linecap="round"/>`).join('');
+  const userSVG = userPaths.map(d =>
+    `<path d="${d}" fill="none" stroke="${CU}" stroke-width="2.8" stroke-linecap="round"/>`).join('');
+
+  const lx = PAD.l;
+  const legRef  = refFrames
+    ? `<rect x="${lx+4}" y="${PAD.t+1}" width="12" height="3.5" fill="${CR}" rx="1.5"/>
+       <text x="${lx+20}" y="${PAD.t+11}" font-size="11" fill="${CR}" font-family="monospace">Referencia (nativo)</text>` : '';
+  const legUser = userFrames
+    ? `<rect x="${lx+(refFrames?134:4)}" y="${PAD.t+1}" width="12" height="3.5" fill="${CU}" rx="1.5"/>
+       <text x="${lx+(refFrames?150:20)}" y="${PAD.t+11}" font-size="11" fill="${CU}" font-family="monospace">Tu voz</text>` : '';
+
+  area.innerHTML =
+    `<div style="background:#060D1B;border-radius:8px;overflow:hidden">
+       <svg viewBox="0 0 ${VW} ${VH}" width="100%" style="display:block">
+         ${gridSVG}${refSVG}${userSVG}${legRef}${legUser}
+       </svg>
+     </div>`;
+  note.style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HELPERS DE UI
+// ═══════════════════════════════════════════════════════════
+
+const ICON_UPLOAD = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+  <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+</svg>`;
+const ICON_MIC = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+  <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+</svg>`;
+
+function setZone(id, state, color) {
+  const zone  = document.getElementById(id + '-zone');
+  const inner = document.getElementById(id + '-zone-inner');
+  zone.style.pointerEvents = (state === 'loading') ? 'none' : 'auto';
+
+  const loader = `<div class="zone-loader" style="color:${color}"><div class="spinner"></div>`;
+
+  if (state === 'loading') {
+    zone.style.borderColor = color + '88';
+    inner.style.color = color;
+    inner.innerHTML = loader + `<span>Analizando pitch…</span></div>`;
+  } else if (state === 'done') {
+    zone.style.borderColor = color + '44';
+    inner.style.color = color;
+    inner.innerHTML = `<span>✓ Cargado — clic para cambiar</span>`;
+  } else if (state === 'recording') {
+    zone.style.borderColor = color + '99';
+    inner.style.color = color;
+    inner.innerHTML = loader + `<span>⏹  Grabando… clic para detener</span></div>`;
+  } else if (state === 'rec-done') {
+    zone.style.borderColor = color + '44';
+    inner.style.color = color;
+    inner.innerHTML = `<span>✓ Grabado — clic para volver a grabar</span>`;
+  } else {
+    zone.style.borderColor = '#0d1e35';
+    inner.style.color = '#2a4a62';
+    if (id === 'ref')  inner.innerHTML = ICON_UPLOAD + `<span>Subir audio</span>`;
+    else               inner.innerHTML = ICON_MIC    + `<span>Grabar mi voz</span>`;
+  }
+}
+
+function setAudio(wrapId, url) {
+  const wrap = document.getElementById(wrapId);
+  wrap.innerHTML = url ? `<audio src="${url}" controls></audio>` : '';
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-banner');
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+
+function updateAnalyzeBtn() {
+  const btn = document.getElementById('btn-analyze');
+  btn.classList.toggle('visible', !!(refFrames && userFrames));
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HANDLERS DE EVENTO
+// ═══════════════════════════════════════════════════════════
+
+document.getElementById('ref-zone').addEventListener('click', () => {
+  if (!busyRef) document.getElementById('ref-file').click();
+});
+
+document.getElementById('ref-file').addEventListener('change', async function() {
+  const file = this.files[0];
+  this.value = '';
+  if (!file || busyRef) return;
+
+  busyRef = true;
+  refFrames = null;
+  showError('');
+  setZone('ref', 'loading', CR);
+  const url = URL.createObjectURL(file);
+
+  try {
+    refFrames = await blobToFrames(file);
+    setZone('ref', 'done', CR);
+    setAudio('ref-audio-wrap', url);
+  } catch {
+    showError('No se pudo analizar el archivo. Prueba con MP3, WAV u OGG.');
+    setZone('ref', 'idle', CR);
+  }
+
+  busyRef = false;
+  renderChart();
+  updateAnalyzeBtn();
+});
+
+document.getElementById('user-zone').addEventListener('click', async () => {
+  if (busyUser) return;
+
+  if (isRecording) {
+    mr?.stop();
+    isRecording = false;
+    setZone('user', 'loading', CU);
+    return;
+  }
+
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch { showError('Permiso de micrófono denegado. Actívalo en los ajustes del navegador.'); return; }
+
+  chunks = [];
+  const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+             : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+             : MediaRecorder.isTypeSupported('audio/mp4')  ? 'audio/mp4'
+             : '';
+  mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+
+  mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+  mr.onstop = async () => {
+    stream.getTracks().forEach(t => t.stop());
+    busyUser = true;
+    userFrames = null;
+    const blob = new Blob(chunks);
+    const url  = URL.createObjectURL(blob);
+    showError('');
+
+    try {
+      userFrames = await blobToFrames(blob);
+      setZone('user', 'rec-done', CU);
+      setAudio('user-audio-wrap', url);
+    } catch {
+      showError('No se pudo analizar la grabación. Intenta de nuevo.');
+      setZone('user', 'idle', CU);
+    }
+
+    busyUser = false;
+    renderChart();
+    updateAnalyzeBtn();
+  };
+
+  mr.start();
+  isRecording = true;
+  setZone('user', 'recording', CU);
+});
+
+document.getElementById('btn-analyze').addEventListener('click', async () => {
+  if (!refFrames || !userFrames) return;
+  const btn = document.getElementById('btn-analyze');
+  btn.disabled = true;
+  btn.innerHTML = `<div class="spinner" style="border-top-color:#6898d4;width:12px;height:12px"></div> Analizando…`;
+
+  function summarize(frames, label) {
+    const v = frames.filter(f => f.st !== null).map(f => f.st);
+    if (!v.length) return `${label}: sin datos.`;
+    const hi  = Math.max(...v).toFixed(1), lo = Math.min(...v).toFixed(1);
+    const dur = (frames.at(-1)?.t ?? 0).toFixed(1);
+    const pct = Math.round(100 * v.length / frames.length);
+    let rises = 0, falls = 0;
+    for (let i = 2; i < v.length; i++) {
+      const d = v[i] - v[i - 2];
+      if (d >  1.2) rises++;
+      if (d < -1.2) falls++;
+    }
+    return `${label}: dur=${dur}s, ${pct}% sonoro, rango=${lo}→${hi}st, subidas≈${rises}, bajadas≈${falls}`;
+  }
+
+  const ctx = `${summarize(refFrames, 'NATIVO')}\n${summarize(userFrames, 'USUARIO')}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({
+        model     : 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        messages  : [{
+          role   : 'user',
+          content: `Eres experto en fonética inglesa ayudando a un hispanohablante autodidacta a mejorar su entonación. Ha comparado su voz con un nativo usando un analizador de pitch.
+
+Datos (pitch en semitonos normalizados a la mediana propia de cada hablante, positivo = más agudo):
+${ctx}
+
+Responde en español, máximo 200 palabras. Estructura exactamente así:
+**Diferencias detectadas**: qué dicen las métricas
+**Por qué importa**: cómo afecta al oído nativo
+**Ejercicios**: 2 ejercicios muy concretos para corregir el problema principal`,
+        }],
+      }),
+    });
+    const data = await res.json();
+    document.getElementById('ai-text').textContent = data.content?.[0]?.text ?? 'Sin respuesta.';
+    document.getElementById('ai-panel').style.display = 'block';
+  } catch {
+    document.getElementById('ai-text').textContent = 'Error de conexión. Intenta de nuevo.';
+    document.getElementById('ai-panel').style.display = 'block';
+  }
+
+  const ICON_BAR = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+  </svg>`;
+  btn.disabled = false;
+  btn.innerHTML = ICON_BAR + ' Analizar con IA';
+});
+</script>
+
+</body>
+</html>
